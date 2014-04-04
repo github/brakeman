@@ -190,21 +190,63 @@ class Brakeman::CallIndex
   end
 
   def filter_by_chain calls, target
-    if target.is_a? Array
-      targets = Set.new target
+    case target
+    when Array
+      targets = target.group_by { |t| chain_target?(t) ? :chain : :nochain }
+      targets[:chain] = targets[:chain].to_set
+      targets[:nochain] = targets[:nochain].to_set
 
       calls.select do |call|
-        targets.include? call[:chain].first
+        targets[:nochain].include?(call[:chain].first) ||
+        targets[:chain].include?(target_chain(call[:chain]))
       end
-    elsif target.is_a? Regexp
+    when Regexp
       calls.select do |call|
         call[:chain].first.to_s.match target
+      end
+    when String, Symbol
+      if chain_target?(target)
+        target = target.to_s
+        calls.select do |call|
+          target == target_chain(call[:chain])
+        end
+      else
+        calls.select do |call|
+          call[:chain].first == target
+        end        
       end
     else
       calls.select do |call|
         call[:chain].first == target
       end
     end
+  end
+
+  # Is this target query a chain itself?
+  # Eg. "User.connection" or "connection"
+  #
+  # target - the target String/Regex to check.
+  #
+  # Returns truthy if the target contains a '.' or doesn't look like a
+  # class/module, falsey otherwise.
+  def chain_target?(target)
+    target['.'] || ('A'..'Z').exclude?(target[0])
+  end
+
+  # Get the string target chain from a chain.
+  #
+  # Eg. [:Foo, :bar, :baz] => "Foo.bar"
+  # Eg. [:bar, :baz]       => "bar"
+  #
+  # Calling `self.something` within an instance method results in a chain
+  # like [:Foo, :something] and calling `self.class.something` results in
+  # [:Foo, :class, :something]. YMMV
+  #
+  # chain - the chain Array to stringify.
+  #
+  # Returns a String.
+  def target_chain(chain)
+    chain[0...-1].compact.join('.')
   end
 
   def from_template call, template_name
