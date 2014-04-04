@@ -192,13 +192,15 @@ class Brakeman::CallIndex
   def filter_by_chain calls, target
     case target
     when Array
-      targets = target.group_by { |t| chain_target?(t) ? :chain : :nochain }
-      targets[:chain] = targets[:chain].map(&:to_s).to_set
-      targets[:nochain] = targets[:nochain].to_set
+      target_types = {:chain => Set.new, :nochain => Set.new}
+      target.each do |t|
+        type = chain_target?(t) ? :chain : :nochain
+        target_types[type].add t
+      end
 
       calls.select do |call|
-        targets[:nochain].include?(call[:chain].first) ||
-        targets[:chain].include?(target_chain(call[:chain]))
+        target_types[:nochain].include?(call[:chain].first) ||
+        target_types[:chain].include?(target_chain(call[:chain]))
       end
     when Regexp
       calls.select do |call|
@@ -230,7 +232,8 @@ class Brakeman::CallIndex
   # Returns truthy if the target contains a '.' or doesn't look like a
   # class/module, falsey otherwise.
   def chain_target?(target)
-    target['.'] || ('A'..'Z').exclude?(target[0])
+    (target.is_a?(String) || target.is_a?(Symbol)) &&
+    (target['.'] || !('A'..'Z').include?(target[0]))
   end
 
   # Get the string target chain from a chain.
