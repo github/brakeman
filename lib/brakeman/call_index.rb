@@ -193,7 +193,7 @@ class Brakeman::CallIndex
     case target
     when Array
       targets = target.group_by { |t| chain_target?(t) ? :chain : :nochain }
-      targets[:chain] = targets[:chain].to_set
+      targets[:chain] = targets[:chain].map(&:to_s).to_set
       targets[:nochain] = targets[:nochain].to_set
 
       calls.select do |call|
